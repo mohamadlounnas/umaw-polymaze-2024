@@ -1,114 +1,102 @@
 #include <Servo.h>
 
-
-
-const int forwordTrigPin = 4;
-const int forwordEchoPin = 5;
-const int rightTrigPin = 6;
-const int rightEchoPin = 7;
-const int leftTrigPin = 8;
-const int leftEchoPin = 9;
-
-long forwordDuration = 0;
-long rightDuration = 0;
-long leftDuration = 0;
-
-long forwordDistance = 0;
-long rightDistance = 0;
-long leftDistance = 0;
-
-int leftMotorPin = 2;
-int rightMotorPin = 3;
-
-Servo left;
-Servo right;
-
-void rightMotorForword() {
-  right.write(0);
-}
-void rightMotorBackword() {
-  right.write(100);
-}
-
-void leftMotorForword() {
-  left.write(100);
-}
-void leftMotorBackword() {
-  left.write(0);
-}
-
-int getDistanceOf(int trigPin, int echoPin) {
-  // Clears the trigPin
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-
-  // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-
-  // Reads the echoPin, returns the sound wave travel time in microseconds
-  // Calculating the distance
-  return pulseIn(echoPin, HIGH) * 0.034 / 2;
-}
-
-void setup() {
-  Serial.begin(9600);
-  left.attach(leftMotorPin);
-  right.attach(rightMotorPin);
-
-
-  pinMode(forwordTrigPin, OUTPUT);
-  pinMode(forwordEchoPin, INPUT);
-  pinMode(rightTrigPin, OUTPUT);
-  pinMode(rightEchoPin, INPUT);
-  pinMode(leftTrigPin, OUTPUT);
-  pinMode(leftEchoPin, INPUT);
-}
-
-void loop() {
-  readDistance();
-  Serial.print("Distance: ");
-  Serial.print(realDistance);
-  Serial.println("cm");
-
-  if (realDistance < 15) {
-    rightMotorBackword();
-    leftMotorForword();
-  } else {
-    rightMotorForword();
-    leftMotorForword();
-  }
-}
-
-
-
-
-
-
-//////////////
-
-
-
-// #include <Servo.h>
-
-// class for robot 
-class Robot {
+// Class for DistanceSensor
+class DistanceSensor {
   private:
-    Motor leftMotor;
-    Motor rightMotor;
-    DistanceSensor frontSensor;
-    DistanceSensor rightSensor;
-    DistanceSensor leftSensor;
+    int trigPin;
+    int echoPin;
+    long duration;
+    long distance;
 
   public:
-    Robot(Motor leftMotor, Motor rightMotor, DistanceSensor frontSensor, DistanceSensor rightSensor, DistanceSensor leftSensor) {
-      this->leftMotor = leftMotor;
-      this->rightMotor = rightMotor;
-      this->frontSensor = frontSensor;
-      this->rightSensor = rightSensor;
-      this->leftSensor = leftSensor;
+    DistanceSensor(int trigPin, int echoPin) {
+      this->trigPin = trigPin;
+      this->echoPin = echoPin;
+      pinMode(trigPin, OUTPUT);
+      pinMode(echoPin, INPUT);
     }
+
+    void readDistance() {
+      digitalWrite(trigPin, LOW);
+      delayMicroseconds(2);
+      digitalWrite(trigPin, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(trigPin, LOW);
+      duration = pulseIn(echoPin, HIGH);
+      distance = duration * 0.034 / 2;
+    }
+
+    long getDistance() {
+      return distance;
+    }
+
+    void printDistance() {
+      Serial.print("Distance: ");
+      Serial.print(distance);
+      Serial.println("cm");
+    }
+};
+
+// Class for Motor
+class Motor {
+  private:
+    int pin;
+    int forwardState;
+    int backwardState;
+    int zeroState = 90;
+    int currentState = 0; // 0 - stop, 1 - forward, 2 - backward
+
+    void attachIfNot() {
+      if (currentState == 0) {
+        servo.attach(pin);
+      }
+    }
+
+  public:
+    Servo servo;
+    Motor(int pin, int forwardState, int backwardState) : pin(pin), forwardState(forwardState), backwardState(backwardState) {
+      //servo.attach(pin);
+      zeroState = servo.read();
+    }
+
+    void forward() {
+      if (currentState != 1) {
+        attachIfNot();
+        servo.write(forwardState);
+        currentState = 1;
+      }
+    }
+
+    void backward() {
+      if (currentState != 2) {
+        attachIfNot();
+        servo.write(backwardState);
+        currentState = 2;
+      }
+    }
+
+    void stop() {
+      if (currentState != 0) {
+        attachIfNot();
+        servo.write(zeroState);
+        servo.detach();
+        currentState = 0;
+      }
+    }
+};
+
+// Class for Robot
+class Robot {
+  private:
+    Motor& leftMotor;
+    Motor& rightMotor;
+    DistanceSensor& frontSensor;
+    DistanceSensor& rightSensor;
+    DistanceSensor& leftSensor;
+
+  public:
+    Robot(Motor& leftMotor, Motor& rightMotor, DistanceSensor& frontSensor, DistanceSensor& rightSensor, DistanceSensor& leftSensor)
+      : leftMotor(leftMotor), rightMotor(rightMotor), frontSensor(frontSensor), rightSensor(rightSensor), leftSensor(leftSensor) {}
 
     void moveForward() {
       leftMotor.forward();
@@ -137,7 +125,7 @@ class Robot {
 
     void readDistances() {
       frontSensor.readDistance();
-      rightSensor.readDistance();
+      // rightSensor.readDistance();
       leftSensor.readDistance();
     }
 
@@ -148,149 +136,63 @@ class Robot {
     }
 
     void init() {
-      leftMotor.init();
-      rightMotor.init();
-      frontSensor.init();
-      rightSensor.init();
-      leftSensor.init();
+      
     }
 };
 
-// leftMotor
-Motor leftMotor(2, 100, 0);
-// rightMotor
-Motor rightMotor(3, 0, 100);
+// Left motor
+Motor leftMotor(2, 180, 10);
+// Right motor
+Motor rightMotor(3, 0, 180);
 
-// distance sensors
+// Distance sensors
 DistanceSensor frontSensor(4, 5);
 DistanceSensor rightSensor(6, 7);
 DistanceSensor leftSensor(8, 9);
 
-Robot robot;
+// Robot
+Robot robot(leftMotor, rightMotor, frontSensor, rightSensor, leftSensor);
 
 void setup() {
   Serial.begin(9600);
-
-  robot = new Robot(
-    leftMotor,
-    rightMotor,
-    frontSensor,
-    rightSensor,
-    leftSensor
-  );
-  
   // initialize the robot
-  leftMotor.init();
+  robot.init();
 }
 
 void loop() {
-  robot.readDistances();
-  robot.printDistances();
-  delay(500);
-
-
-  // readDistance();
-  // Serial.print("Distance: ");
-  // Serial.print(realDistance);
-  // Serial.println("cm");
-
-  // if (realDistance < 15) {
-  //   rightMotorBackword();
-  //   leftMotorForword();
+  // robot.readDistances();
+  // robot.printDistances();
+  // robot move
+  // if (frontSensor.getDistance() < 10) {
+    // if (leftSensor.getDistance() > 10) {
+      // robot.turnLeft();
+    // } else {
+      // robot.turnRight();
+    // }
+    // delay(500);
   // } else {
-  //   rightMotorForword();
-  //   leftMotorForword();
+    // robot.moveForward();
+    // delay(1000);
+    // robot.moveBackward();
+    // delay(1000);
+
+
+    rightMotor.backward();
+    leftMotor.forward();
+    delay(1000);
+    leftMotor.backward();
+    rightMotor.forward();
+    delay(1000);
+    leftMotor.backward();
+    rightMotor.backward();
+    delay(1000);
+    leftMotor.forward();
+    rightMotor.forward();
+    delay(1000);
+    leftMotor.stop();
+    rightMotor.stop();
+    delay(1000);
+    
   // }
+  //delay(500);
 }
-
-
-
-
-
-
-//////////////
-
-
-
-// #include <Servo.h>
-
-
-
-// const int forwordTrigPin = 4;
-// const int forwordEchoPin = 5;
-// const int rightTrigPin = 6;
-// const int rightEchoPin = 7;
-// const int leftTrigPin = 8;
-// const int leftEchoPin = 9;
-
-// long forwordDuration = 0;
-// long rightDuration = 0;
-// long leftDuration = 0;
-
-// long forwordDistance = 0;
-// long rightDistance = 0;
-// long leftDistance = 0;
-
-// int leftMotorPin = 2;
-// int rightMotorPin = 3;
-
-// Servo left;
-// Servo right;
-
-// void rightMotorForword() {
-//   right.write(0);
-// }
-// void rightMotorBackword() {
-//   right.write(100);
-// }
-
-// void leftMotorForword() {
-//   left.write(100);
-// }
-// void leftMotorBackword() {
-//   left.write(0);
-// }
-
-// int getDistanceOf(int trigPin, int echoPin) {
-//   // Clears the trigPin
-//   digitalWrite(trigPin, LOW);
-//   delayMicroseconds(2);
-
-//   // Sets the trigPin on HIGH state for 10 micro seconds
-//   digitalWrite(trigPin, HIGH);
-//   delayMicroseconds(10);
-//   digitalWrite(trigPin, LOW);
-
-//   // Reads the echoPin, returns the sound wave travel time in microseconds
-//   // Calculating the distance
-//   return pulseIn(echoPin, HIGH) * 0.034 / 2;
-// }
-
-// void setup() {
-//   Serial.begin(9600);
-//   left.attach(leftMotorPin);
-//   right.attach(rightMotorPin);
-
-
-//   pinMode(forwordTrigPin, OUTPUT);
-//   pinMode(forwordEchoPin, INPUT);
-//   pinMode(rightTrigPin, OUTPUT);
-//   pinMode(rightEchoPin, INPUT);
-//   pinMode(leftTrigPin, OUTPUT);
-//   pinMode(leftEchoPin, INPUT);
-// }
-
-// void loop() {
-//   readDistance();
-//   Serial.print("Distance: ");
-//   Serial.print(realDistance);
-//   Serial.println("cm");
-
-//   if (realDistance < 15) {
-//     rightMotorBackword();
-//     leftMotorForword();
-//   } else {
-//     rightMotorForword();
-//     leftMotorForword();
-//   }
-// }
